@@ -88,23 +88,24 @@ public class BatchFlowTests
         Assert.Equal(9, results["c"]);
     }
 
-    private class DataProcessNode : Node<Dictionary<string, object>, string, bool>
+    private class DataProcessNode : Node<Dictionary<string, object>, int, int>
     {
-        public override Task<string> Prep(Dictionary<string, object> shared)
+        public override Task<int> Prep(Dictionary<string, object> shared)
         {
             var key = Params["key"]?.ToString()!;
-            return Task.FromResult(key);
+            var data = ((Dictionary<string, int>)shared["input_data"])[key];
+            return Task.FromResult(data);
         }
 
-        public override Task<bool> Exec(string key)
-            => Task.FromResult(true);
+        public override Task<int> Exec(int data)
+            => Task.FromResult(data * 2);
 
-        public override Task<string?> Post(Dictionary<string, object> shared, string p, bool e)
+        public override Task<string?> Post(Dictionary<string, object> shared, int p, int e)
         {
-            var data = ((Dictionary<string, int>)shared["input_data"])[p];
+            var key = Params["key"]?.ToString()!;
             if (!shared.ContainsKey("results"))
                 shared["results"] = new Dictionary<string, int>();
-            ((Dictionary<string, int>)shared["results"])[p] = data * 2;
+            ((Dictionary<string, int>)shared["results"])[key] = e;
             return Task.FromResult<string?>("default");
         }
     }
@@ -124,33 +125,29 @@ public class BatchFlowTests
         }
     }
 
-    private class CustomParamNode : Node<Dictionary<string, object>, CustomItem, bool>
+    private class CustomParamNode : Node<Dictionary<string, object>, int, int>
     {
-        public override Task<CustomItem> Prep(Dictionary<string, object> shared)
+        public override Task<int> Prep(Dictionary<string, object> shared)
         {
             var key = Params["key"]?.ToString()!;
-            var multiplier = (int)(Params["multiplier"] ?? 1);
             var data = ((Dictionary<string, int>)shared["input_data"])[key];
-            return Task.FromResult(new CustomItem { Key = key, Data = data, Multiplier = multiplier });
+            return Task.FromResult(data);
         }
 
-        public override Task<bool> Exec(CustomItem item)
-            => Task.FromResult(true);
-
-        public override Task<string?> Post(Dictionary<string, object> shared, CustomItem p, bool e)
+        public override Task<int> Exec(int data)
         {
+            var multiplier = (int)(Params["multiplier"] ?? 1);
+            return Task.FromResult(data * multiplier);
+        }
+
+        public override Task<string?> Post(Dictionary<string, object> shared, int p, int e)
+        {
+            var key = Params["key"]?.ToString()!;
             if (!shared.ContainsKey("results"))
                 shared["results"] = new Dictionary<string, int>();
-            ((Dictionary<string, int>)shared["results"])[p.Key] = p.Data * p.Multiplier;
+            ((Dictionary<string, int>)shared["results"])[key] = e;
             return Task.FromResult<string?>("default");
         }
-    }
-
-    private class CustomItem
-    {
-        public string Key { get; set; } = "";
-        public int Data { get; set; }
-        public int Multiplier { get; set; }
     }
 
     private class CustomParamBatchFlow : BatchFlow<Dictionary<string, object>>
