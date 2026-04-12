@@ -1,67 +1,56 @@
-# PocketFlow .NET Agent Guide
+# PocketFlow Agent Guide
 
-## Project Overview
+## Project Structure
 
-`.NET` port of [PocketFlow](https://github.com/The-Pocket/PocketFlow) - a minimalist LLM framework.
-- Python source: `pocketflow/__init__.py` (100 lines)
-- .NET implementation: `pocketflow.net/PocketFlow.cs`
+```
+pocketflow/           # Python source (100 lines - source of truth)
+pocketflow.net/       # .NET port (Async-only)
+pocketflow.net.tests/ # .NET tests (xUnit)
+cookbook/             # Python examples (40+ apps)
+cookbook.net/         # .NET migrated examples (file-based apps)
+```
 
 ## Build & Test
 
+**Python:** (no explicit test command documented - check individual cookbook dirs)
+
+**.NET:**
 ```powershell
-cd pocketflow.net.tests
-dotnet test
+cd pocketflow.net.tests && dotnet test
 ```
 
-## .NET Conventions (differ from Python)
+## Python → .NET Key Differences
 
 | Aspect | Python | .NET |
 |--------|--------|------|
 | Sync/Async | Both exist | **Async-only** |
 | Transitions | `>>` operator, `- "action"` | `.On("action").To(node)` |
-| Interface | Internal | `IOrchestrated<TShared>` is `internal` |
 | Null return | `None` = default | `null` = default |
-| Test naming | `test_underscore_name` | `Name_likes_sentence` |
+| Node cloning | `copy.copy()` | `ShallowClone()` |
 
-## Core Types
+## Core Types (pocketflow.net/PocketFlow.cs)
 
-- **`Node<TShared, TPrepReturn, TExecReturn>`** - 3-phase node (Prep → Exec → Post)
-- **`Flow<TShared>`** - orchestrates nodes via action-based transitions
-- **`BaseNode`** - base class with `Successors` dict and transition builder
-- **`BatchNode<TShared, TItem, TExecReturn>`** - inherits from `BaseNode`, processes items in batch with retry support
-- **`BatchFlow<TShared>`** - iterates over param sets, runs sub-flow for each
-- **`BatchExtensions.GetBatchParams(shared)`** - access batch params from child nodes
+- **`Node<TShared, TPrep, TExec>`** - 3-phase: `Prep` → `Exec` → `Post`
+- **`Flow<TShared>`** - orchestrates nodes via action transitions
+- **`BatchNode<TShared, TItem, TExec>`** - processes items with retry
+- **`BatchFlow<TShared>`** - iterates param sets, runs sub-flow per item
 
-## BatchNode
+## Critical Behaviors
 
-- `Prep` returns collection of items to process
-- `ExecItem` processes each item (retry-enabled per item)
-- `ExecFallback` handles item-level failures after retries exhausted
-- Constructor: `BatchNode(defaultParams, maxRetries, wait, enableParallel)`
+- `Post()` returning `null` → uses `"default"` transition
+- Nodes are **cloned** between orchestration iterations (resets state)
+- `ExecFallback` returns `TExecReturn` (not void) - default re-throws
+- `BatchFlow.OrchestrateOnce` calls `base.DoOrchestrate`
+- `Flow` implements `IOrchestrated<TShared>` → flows can nest
 
-## BatchFlow
+## .NET Cookbook Examples (cookbook.net/)
 
-- `Prep` returns collection of param dicts
-- Each param dict triggers one sub-flow execution
-- Child nodes access params via `BatchExtensions.GetBatchParams(shared)`
-- Constructor: `BatchFlow(startNode, defaultParams, enableParallel)`
-
-## Important Behaviors
-
-- `Post()` returning `null` → use "default" transition
-- `Flow` implements `IOrchestrated<TShared>` so flows can nest inside other flows
-- Nodes are **cloned** between orchestration iterations to reset state
-- `ExecFallback` called when all retries exhausted (default re-throws)
-- `BatchFlow.OrchestrateOnce` calls `base.DoOrchestrate` to run sub-flow
-
-## Missing Features (Opportunities)
-
-- `ExecFallback` needs dedicated tests
-- No parallel batch execution tests
-- No nested BatchFlow tests (e.g., BatchFlow inside BatchFlow)
+- File-based apps using `#:project`, `#:package`, `#:property` directives
+- Output goes to `./cookbook.net/artifacts`
+- Reference: `pocketflow.net.csproj`
 
 ## Reference Sources
 
-- `pocketflow/__init__.py` - Python implementation (source of truth)
-- `docs/core_abstraction/*.md` - design documentation
-- `tests/test_*.py` - Python tests (reference for .NET test scenarios)
+- `pocketflow/__init__.py` - Python source (100 lines, source of truth)
+- `pocketflow.net/PocketFlow.cs` - .NET implementation
+- `pocketflow.net.tests/*.cs` - xUnit tests with naming `Name_likes_sentence`
