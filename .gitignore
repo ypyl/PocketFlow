@@ -87,3 +87,5 @@ cookbook/pocketflow-minimal-example/viz/flow_visualization.json
 .claude/
 pocketflow.net/bin/
 pocketflow.net/obj/
+pocketflow.net.tests/bin/
+pocketflow.net.tests/obj/
