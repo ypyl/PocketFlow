@@ -88,6 +88,23 @@ public class Node<TShared, TPrepReturn, TExecReturn>(int maxRetries = 1, double 
 public class Flow<TShared>(BaseNode? start = null) : BaseNode, IFlow<TShared>
 {
     protected BaseNode? StartNode = start;
+    private BaseNode? _lastNode;
+
+    public Flow<TShared> Start(BaseNode node)
+    {
+        StartNode = node;
+        _lastNode = node;
+        return this;
+    }
+
+    public new Flow<TShared> Next(BaseNode node, string action = "default")
+    {
+        if (_lastNode == null)
+            throw new InvalidOperationException("Start node not set. Call Start() first.");
+        _lastNode.Next(node, action);
+        _lastNode = node;
+        return this;
+    }
 
     protected BaseNode? GetNextNode(BaseNode curr, string? action)
     {
