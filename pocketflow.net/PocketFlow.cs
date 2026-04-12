@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Runtime.ExceptionServices;
+using System.Threading.Tasks;
 
 namespace PocketFlow;
 
@@ -100,7 +101,7 @@ public class Flow<TShared>(BaseNode? start = null) : BaseNode, IFlow<TShared>
 
     public virtual Task Prep(TShared shared) => Task.CompletedTask;
 
-    public virtual async Task<string?> Orchestrate(TShared shared)
+    protected virtual async Task<string?> DoOrchestrate(TShared shared)
     {
         var curr = Clone(StartNode);
         string? lastAction = null;
@@ -114,6 +115,8 @@ public class Flow<TShared>(BaseNode? start = null) : BaseNode, IFlow<TShared>
         return lastAction;
     }
 
+    public virtual Task<string?> Orchestrate(TShared shared) => DoOrchestrate(shared);
+
     public virtual Task<string?> Post(TShared shared, string? nextAction)
         => Task.FromResult(nextAction);
 
@@ -124,5 +127,145 @@ public class Flow<TShared>(BaseNode? start = null) : BaseNode, IFlow<TShared>
         await Prep(shared);
         var o = await Orchestrate(shared);
         return await Post(shared, o);
+    }
+}
+
+public class BatchNode<TShared, TItem, TExecReturn>(
+    IDictionary<string, object>? defaultParams = null,
+    int maxRetries = 1,
+    double wait = 0,
+    bool enableParallel = false
+) : BaseNode, IOrchestrated<TShared>
+{
+    public IDictionary<string, object> DefaultParams { get; } = defaultParams ?? new Dictionary<string, object>();
+    public bool EnableParallel { get; } = enableParallel;
+    protected int MaxRetries = maxRetries;
+    protected double Wait = wait;
+    protected int CurRetry;
+
+    public virtual Task<IEnumerable<TItem>?> Prep(TShared shared) 
+        => Task.FromResult<IEnumerable<TItem>?>([]);
+
+    public virtual Task<TExecReturn> ExecItem(TItem item) 
+        => Task.FromResult<TExecReturn>(default!);
+
+    public virtual Task<TExecReturn> ExecFallback(TItem item, Exception exc)
+    {
+        ExceptionDispatchInfo.Capture(exc).Throw();
+        return Task.FromResult<TExecReturn>(default!);
+    }
+
+    public virtual Task<string?> Post(TShared shared, IEnumerable<TItem>? prepRes, IList<TExecReturn>? execRes) 
+        => Task.FromResult<string?>(null);
+
+    private async Task<TExecReturn> ExecItemWithRetry(TItem item)
+    {
+        for (CurRetry = 0; CurRetry < MaxRetries; CurRetry++)
+        {
+            try { return await ExecItem(item); }
+            catch (Exception e)
+            {
+                if (CurRetry == MaxRetries - 1) return await ExecFallback(item, e);
+                if (Wait > 0) await Task.Delay((int)(Wait * 1000));
+            }
+        }
+        return default!;
+    }
+
+    public async Task<string?> Run(TShared shared)
+    {
+        var items = await Prep(shared);
+        var results = await Execute(items);
+        return await Post(shared, items, results);
+    }
+
+    private async Task<IList<TExecReturn>> Execute(IEnumerable<TItem>? items)
+    {
+        var results = new List<TExecReturn>();
+        var itemList = items?.ToList() ?? [];
+        
+        if (EnableParallel)
+        {
+            var tasks = itemList.Select(ExecItemWithRetry);
+            var taskResults = await Task.WhenAll(tasks);
+            results.AddRange(taskResults);
+        }
+        else
+        {
+            foreach (var item in itemList)
+            {
+                results.Add(await ExecItemWithRetry(item));
+            }
+        }
+        
+        return results;
+    }
+}
+
+public class BatchFlow<TShared>(
+    BaseNode? start = null,
+    IDictionary<string, object>? defaultParams = null,
+    bool enableParallel = false
+) : Flow<TShared>(start) where TShared : IDictionary<string, object>
+{
+    public IDictionary<string, object> DefaultParams { get; } = defaultParams ?? new Dictionary<string, object>();
+    public bool EnableParallel { get; } = enableParallel;
+    public IDictionary<string, object>? CurrentItemParams { get; private set; }
+
+    public override Task<IEnumerable<IDictionary<string, object>>> Prep(TShared shared) 
+        => Task.FromResult<IEnumerable<IDictionary<string, object>>>([]);
+
+    protected virtual async Task OrchestrateOnce(TShared shared, IDictionary<string, object> itemParams)
+    {
+        CurrentItemParams = MergeParams(DefaultParams, itemParams);
+        shared["_batch_params"] = CurrentItemParams;
+        await base.DoOrchestrate(shared);
+    }
+
+    protected override async Task<string?> DoOrchestrate(TShared shared)
+    {
+        var paramSets = (await Prep(shared))?.ToList() ?? [];
+        
+        if (EnableParallel)
+        {
+            var options = new ParallelOptions { MaxDegreeOfParallelism = -1 };
+            await Parallel.ForEachAsync(paramSets, options, async (itemParams, ct) =>
+            {
+                await OrchestrateOnce(shared, itemParams);
+            });
+        }
+        else
+        {
+            foreach (var itemParams in paramSets)
+            {
+                await OrchestrateOnce(shared, itemParams);
+            }
+        }
+        
+        return null;
+    }
+
+    private static IDictionary<string, object> MergeParams(
+        IDictionary<string, object> defaultParams, 
+        IDictionary<string, object> itemParams)
+    {
+        var merged = new Dictionary<string, object>(defaultParams);
+        foreach (var kvp in itemParams)
+        {
+            merged[kvp.Key] = kvp.Value;
+        }
+        return merged;
+    }
+}
+
+public static class BatchExtensions
+{
+    public static IDictionary<string, object> GetBatchParams<TShared>(TShared shared)
+        where TShared : IDictionary<string, object>
+    {
+        return shared.TryGetValue("_batch_params", out var paramsObj) 
+            && paramsObj is IDictionary<string, object> dict
+            ? dict 
+            : new Dictionary<string, object>();
     }
 }

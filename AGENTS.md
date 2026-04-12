@@ -28,6 +28,23 @@ dotnet test
 - **`Node<TShared, TPrepReturn, TExecReturn>`** - 3-phase node (Prep → Exec → Post)
 - **`Flow<TShared>`** - orchestrates nodes via action-based transitions
 - **`BaseNode`** - base class with `Successors` dict and transition builder
+- **`BatchNode<TShared, TItem, TExecReturn>`** - inherits from `BaseNode`, processes items in batch with retry support
+- **`BatchFlow<TShared>`** - iterates over param sets, runs sub-flow for each
+- **`BatchExtensions.GetBatchParams(shared)`** - access batch params from child nodes
+
+## BatchNode
+
+- `Prep` returns collection of items to process
+- `ExecItem` processes each item (retry-enabled per item)
+- `ExecFallback` handles item-level failures after retries exhausted
+- Constructor: `BatchNode(defaultParams, maxRetries, wait, enableParallel)`
+
+## BatchFlow
+
+- `Prep` returns collection of param dicts
+- Each param dict triggers one sub-flow execution
+- Child nodes access params via `BatchExtensions.GetBatchParams(shared)`
+- Constructor: `BatchFlow(startNode, defaultParams, enableParallel)`
 
 ## Important Behaviors
 
@@ -35,12 +52,13 @@ dotnet test
 - `Flow` implements `IOrchestrated<TShared>` so flows can nest inside other flows
 - Nodes are **cloned** between orchestration iterations to reset state
 - `ExecFallback` called when all retries exhausted (default re-throws)
+- `BatchFlow.OrchestrateOnce` calls `base.DoOrchestrate` to run sub-flow
 
 ## Missing Features (Opportunities)
 
-- No `BatchNode` / `BatchFlow` (map-reduce pattern)
 - `ExecFallback` needs dedicated tests
-- No parallel execution variants
+- No parallel batch execution tests
+- No nested BatchFlow tests (e.g., BatchFlow inside BatchFlow)
 
 ## Reference Sources
 
