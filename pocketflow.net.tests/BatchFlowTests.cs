@@ -92,7 +92,7 @@ public class BatchFlowTests
     {
         public override Task<string> Prep(Dictionary<string, object> shared)
         {
-            var key = BatchExtensions.GetBatchParams(shared)["key"]?.ToString()!;
+            var key = Params["key"]?.ToString()!;
             return Task.FromResult(key);
         }
 
@@ -128,8 +128,8 @@ public class BatchFlowTests
     {
         public override Task<CustomItem> Prep(Dictionary<string, object> shared)
         {
-            var key = BatchExtensions.GetBatchParams(shared)["key"]?.ToString()!;
-            var multiplier = (int)(BatchExtensions.GetBatchParams(shared)["multiplier"] ?? 1);
+            var key = Params["key"]?.ToString()!;
+            var multiplier = (int)(Params["multiplier"] ?? 1);
             var data = ((Dictionary<string, int>)shared["input_data"])[key];
             return Task.FromResult(new CustomItem { Key = key, Data = data, Multiplier = multiplier });
         }

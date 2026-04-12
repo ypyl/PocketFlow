@@ -26,8 +26,19 @@ public interface IFlow<TShared> : IOrchestrated<TShared>
 public class BaseNode
 {
     public ImmutableDictionary<string, BaseNode> Successors = ImmutableDictionary<string, BaseNode>.Empty;
+    public IDictionary<string, object> Params { get; private set; } = new Dictionary<string, object>();
 
-    public BaseNode ShallowClone() => (BaseNode)MemberwiseClone();
+    public void SetParams(IDictionary<string, object>? parameters)
+    {
+        Params = parameters != null ? new Dictionary<string, object>(parameters) : new Dictionary<string, object>();
+    }
+
+    public BaseNode ShallowClone()
+    {
+        var clone = (BaseNode)MemberwiseClone();
+        clone.Params = new Dictionary<string, object>(Params);
+        return clone;
+    }
 
     public BaseNode Next(BaseNode node, string action = "default")
     {
@@ -218,7 +229,10 @@ public class BatchFlow<TShared>(
     protected virtual async Task OrchestrateOnce(TShared shared, IDictionary<string, object> itemParams)
     {
         CurrentItemParams = MergeParams(DefaultParams, itemParams);
-        shared["_batch_params"] = CurrentItemParams;
+        if (StartNode != null)
+        {
+            StartNode.SetParams(CurrentItemParams);
+        }
         await base.DoOrchestrate(shared);
     }
 
@@ -255,17 +269,5 @@ public class BatchFlow<TShared>(
             merged[kvp.Key] = kvp.Value;
         }
         return merged;
-    }
-}
-
-public static class BatchExtensions
-{
-    public static IDictionary<string, object> GetBatchParams<TShared>(TShared shared)
-        where TShared : IDictionary<string, object>
-    {
-        return shared.TryGetValue("_batch_params", out var paramsObj) 
-            && paramsObj is IDictionary<string, object> dict
-            ? dict 
-            : new Dictionary<string, object>();
     }
 }
