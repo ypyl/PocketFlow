@@ -30,24 +30,29 @@ public class FlowTests
     }
 
     [Fact]
-    public async Task Flow_start_method_initialization()
+    public async Task Flow_can_be_initialized_with_start_node()
     {
         var shared = new Dictionary<string, object>();
-        var pipeline = new Flow<Dictionary<string, object>>();
-        pipeline.Start(new NumberNode(5));
+        var n1 = new NumberNode(5);
         
+        var pipeline = new Flow<Dictionary<string, object>>(n1);
         await pipeline.Run(shared);
         
         Assert.Equal(5, shared["current"]);
     }
 
     [Fact]
-    public async Task Flow_start_method_chaining()
+    public async Task Flow_sequence_with_explicit_transitions()
     {
         var shared = new Dictionary<string, object>();
-        var pipeline = new Flow<Dictionary<string, object>>();
-        pipeline.Start(new NumberNode(5)).Next(new AddNode(3)).Next(new MultiplyNode(2));
+        var n1 = new NumberNode(5);
+        var n2 = new AddNode(3);
+        var n3 = new MultiplyNode(2);
         
+        n1.Next(n2);
+        n2.Next(n3);
+        
+        var pipeline = new Flow<Dictionary<string, object>>(n1);
         await pipeline.Run(shared);
         
         Assert.Equal(16, shared["current"]);
