@@ -223,6 +223,42 @@ public class FlowTests
         Assert.Null(lastAction);
     }
 
+    [Fact]
+    public async Task Flow_ends_when_default_missing()
+    {
+        var shared = new Dictionary<string, object>();
+        
+        var actionNode = new ActionNode("specific_action");
+        var nextNode = new NoOpNode();
+        
+        actionNode.On("default").To(nextNode);
+        
+        var pipeline = new Flow<Dictionary<string, object>>(actionNode);
+        
+        var lastAction = await pipeline.Run(shared);
+        
+        Assert.Equal("specific_action", lastAction);
+        Assert.False(nextNode.Ran);
+    }
+
+    [Fact]
+    public async Task Flow_ends_when_specific_missing()
+    {
+        var shared = new Dictionary<string, object>();
+        
+        var actionNode = new ActionNode("specific_action");
+        var nextNode = new RanTrackingNode();
+        
+        actionNode.On("specific_action").To(nextNode);
+        
+        var pipeline = new Flow<Dictionary<string, object>>(actionNode);
+        
+        var lastAction = await pipeline.Run(shared);
+        
+        Assert.Null(lastAction);
+        Assert.True((bool)shared["node_ran"]!);
+    }
+
     private class NoOpNode : Node<Dictionary<string, object>, object?, object?>
     {
         public bool Ran { get; private set; }
@@ -351,5 +387,38 @@ public class PathNode : Node<Dictionary<string, object>, object?, object?>
     {
         shared["path_taken"] = PathId;
         return Task.FromResult<object?>(null);
+    }
+}
+
+public class ActionNode : Node<Dictionary<string, object>, object?, object?>
+{
+    public string Action { get; }
+    
+    public ActionNode(string action)
+    {
+        Action = action;
+    }
+
+    public override Task<string?> Post(Dictionary<string, object> shared, object? p, object? e)
+        => Task.FromResult<string?>(Action);
+}
+
+public class RanTrackingNode : Node<Dictionary<string, object>, object?, object?>
+{
+    public override Task<object?> Prep(Dictionary<string, object> shared)
+    {
+        shared["node_ran"] = false;
+        return Task.FromResult<object?>(null);
+    }
+
+    public override Task<object?> Exec(object? prepRes)
+    {
+        return Task.FromResult<object?>(null);
+    }
+
+    public override Task<string?> Post(Dictionary<string, object> shared, object? p, object? e)
+    {
+        shared["node_ran"] = true;
+        return Task.FromResult<string?>(null);
     }
 }

@@ -121,7 +121,12 @@ public class Flow<TShared>(BaseNode? start = null) : BaseNode, IFlow<TShared>
             lastAction = curr is IOrchestrated<TShared> an
                 ? await an.Run(shared)
                 : null;
-            curr = Clone(GetNextNode(curr, lastAction));
+            var nextNode = GetNextNode(curr, lastAction);
+            if (nextNode != null)
+            {
+                nextNode.SetParams(curr.Params);
+            }
+            curr = Clone(nextNode);
         }
         return lastAction;
     }
