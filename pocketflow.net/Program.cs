@@ -6,7 +6,7 @@ var nodeA = new MyNodeA();
 var nodeB = new MyNodeB();
 nodeA.On("next").To(nodeB);
 
-var flow = new Flow<Dictionary<string, object>, object?>(nodeA);
+var flow = new Flow<Dictionary<string, object>>(nodeA);
 await flow.Run(shared);
 
 class MyNodeA : Node<Dictionary<string, object>, object?, object?>

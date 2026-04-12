@@ -3,23 +3,23 @@ using System.Runtime.ExceptionServices;
 
 namespace PocketFlow;
 
-public interface INode<TShared, TPrepReturn, TExecReturn> : IRunnable<TShared>
+public interface IOrchestrated<TShared>
+{
+    Task<string?> Run(TShared shared);
+}
+
+public interface INode<TShared, TPrepReturn, TExecReturn> : IOrchestrated<TShared>
 {
     Task<TPrepReturn?> Prep(TShared shared);
     Task<TExecReturn?> Exec(TPrepReturn? prepRes);
     Task<string?> Post(TShared shared, TPrepReturn? prepRes, TExecReturn? execRes);
 }
 
-public interface IFlow<TShared, TPrepReturn> : IRunnable<TShared>
+public interface IFlow<TShared> : IOrchestrated<TShared>
 {
-    Task<TPrepReturn?> Prep(TShared shared);
+    Task Prep(TShared shared);
     Task<string?> Orchestrate(TShared shared);
-    Task<string?> Post(TShared shared, TPrepReturn? prepRes, string? nextAction);
-}
-
-public interface IRunnable<TShared>
-{
-    Task<string?> Run(TShared shared);
+    Task<string?> Post(TShared shared, string? nextAction);
 }
 
 public class BaseNode
@@ -48,7 +48,7 @@ public class TransitionBuilder(BaseNode source, string action)
     public BaseNode To(BaseNode target) => source.Next(target, action);
 }
 
-public class Node<TShared, TPrepReturn, TExecReturn>(int maxRetries = 1, double wait = 0) : BaseNode, INode<TShared, TPrepReturn, TExecReturn>, IRunnable<TShared>
+public class Node<TShared, TPrepReturn, TExecReturn>(int maxRetries = 1, double wait = 0) : BaseNode, INode<TShared, TPrepReturn, TExecReturn>
 {
     protected int MaxRetries = maxRetries;
     protected double Wait = wait;
@@ -85,7 +85,7 @@ public class Node<TShared, TPrepReturn, TExecReturn>(int maxRetries = 1, double 
     }
 }
 
-public class Flow<TShared, TPrepReturn>(BaseNode? start = null) : IFlow<TShared, TPrepReturn>
+public class Flow<TShared>(BaseNode? start = null) : BaseNode, IFlow<TShared>
 {
     protected BaseNode? StartNode = start;
 
@@ -98,7 +98,7 @@ public class Flow<TShared, TPrepReturn>(BaseNode? start = null) : IFlow<TShared,
         return null;
     }
 
-    public virtual Task<TPrepReturn?> Prep(TShared shared) => Task.FromResult<TPrepReturn?>(default);
+    public virtual Task Prep(TShared shared) => Task.CompletedTask;
 
     public virtual async Task<string?> Orchestrate(TShared shared)
     {
@@ -106,7 +106,7 @@ public class Flow<TShared, TPrepReturn>(BaseNode? start = null) : IFlow<TShared,
         string? lastAction = null;
         while (curr != null)
         {
-            lastAction = curr is IRunnable<TShared> an
+            lastAction = curr is IOrchestrated<TShared> an
                 ? await an.Run(shared)
                 : null;
             curr = Clone(GetNextNode(curr, lastAction));
@@ -114,15 +114,15 @@ public class Flow<TShared, TPrepReturn>(BaseNode? start = null) : IFlow<TShared,
         return lastAction;
     }
 
-    public virtual Task<string?> Post(TShared shared, TPrepReturn? prepRes, string? execRes)
-        => Task.FromResult(execRes);
+    public virtual Task<string?> Post(TShared shared, string? nextAction)
+        => Task.FromResult(nextAction);
 
     protected static BaseNode? Clone(BaseNode? node) => node?.ShallowClone();
 
     public async Task<string?> Run(TShared shared)
     {
-        var p = await Prep(shared);
+        await Prep(shared);
         var o = await Orchestrate(shared);
-        return await Post(shared, p, o);
+        return await Post(shared, o);
     }
 }
