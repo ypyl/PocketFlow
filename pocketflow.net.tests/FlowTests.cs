@@ -134,6 +134,95 @@ public class FlowTests
         Assert.Equal("cycle_done", lastAction);
     }
 
+    [Fact]
+    public async Task Flow_as_node()
+    {
+        var shared = new Dictionary<string, object>();
+        
+        var n1 = new NumberNode(5);
+        var n2 = new AddNode(10);
+        var n3 = new MultiplyNode(2);
+        n1.On("default").To(n2);
+        n2.On("default").To(n3);
+        
+        var f1 = new Flow<Dictionary<string, object>>(n1);
+        var f2 = new Flow<Dictionary<string, object>>(f1);
+        var f3 = new Flow<Dictionary<string, object>>(f2);
+        
+        await f3.Run(shared);
+        
+        Assert.Equal(30, shared["current"]);
+    }
+
+    [Fact]
+    public async Task Nested_flow_three_levels()
+    {
+        var shared = new Dictionary<string, object>();
+        
+        var innerN1 = new NumberNode(5);
+        var innerN2 = new AddNode(3);
+        innerN1.On("default").To(innerN2);
+        var innerFlow = new Flow<Dictionary<string, object>>(innerN1);
+        
+        var middleN = new MultiplyNode(4);
+        innerFlow.On("default").To(middleN);
+        var middleFlow = new Flow<Dictionary<string, object>>(innerFlow);
+        
+        var wrapperFlow = new Flow<Dictionary<string, object>>(middleFlow);
+        
+        await wrapperFlow.Run(shared);
+        
+        Assert.Equal(32, shared["current"]);
+    }
+
+    [Fact]
+    public async Task Flow_chaining_flows()
+    {
+        var shared = new Dictionary<string, object>();
+        
+        var n1 = new NumberNode(10);
+        var n2 = new AddNode(10);
+        n1.On("default").To(n2);
+        var flow1 = new Flow<Dictionary<string, object>>(n1);
+        
+        var n3 = new MultiplyNode(2);
+        var flow2 = new Flow<Dictionary<string, object>>(n3);
+        
+        flow1.On("default").To(flow2);
+        
+        var wrapperFlow = new Flow<Dictionary<string, object>>(flow1);
+        
+        await wrapperFlow.Run(shared);
+        
+        Assert.Equal(40, shared["current"]);
+    }
+
+    [Fact]
+    public async Task Composition_with_action_propagation()
+    {
+        var shared = new Dictionary<string, object>();
+        
+        var innerStartNode = new NumberNode(100);
+        var innerEndNode = new SignalNode("inner_done");
+        innerStartNode.On("default").To(innerEndNode);
+        var innerFlow = new Flow<Dictionary<string, object>>(innerStartNode);
+        
+        var pathANode = new PathNode("A");
+        var pathBNode = new PathNode("B");
+        
+        innerFlow.On("inner_done").To(pathBNode);
+        innerFlow.On("other_action").To(pathANode);
+        
+        var outerFlow = new Flow<Dictionary<string, object>>(innerFlow);
+        
+        var lastAction = await outerFlow.Run(shared);
+        
+        Assert.Equal(100, shared["current"]);
+        Assert.Equal("inner_done", shared["last_signal_emitted"]);
+        Assert.Equal("B", shared["path_taken"]);
+        Assert.Null(lastAction);
+    }
+
     private class NoOpNode : Node<Dictionary<string, object>, object?, object?>
     {
         public bool Ran { get; private set; }
@@ -231,4 +320,36 @@ public class EndSignalNode : Node<Dictionary<string, object>, object?, object?>
 
     public override Task<string?> Post(Dictionary<string, object> shared, object? p, object? e)
         => Task.FromResult<string?>(Signal);
+}
+
+public class SignalNode : Node<Dictionary<string, object>, object?, object?>
+{
+    public string Signal { get; }
+    
+    public SignalNode(string signal = "default_signal")
+    {
+        Signal = signal;
+    }
+
+    public override Task<string?> Post(Dictionary<string, object> shared, object? p, object? e)
+    {
+        shared["last_signal_emitted"] = Signal;
+        return Task.FromResult<string?>(Signal);
+    }
+}
+
+public class PathNode : Node<Dictionary<string, object>, object?, object?>
+{
+    public string PathId { get; }
+    
+    public PathNode(string pathId)
+    {
+        PathId = pathId;
+    }
+
+    public override Task<object?> Prep(Dictionary<string, object> shared)
+    {
+        shared["path_taken"] = PathId;
+        return Task.FromResult<object?>(null);
+    }
 }
