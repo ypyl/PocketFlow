@@ -5,7 +5,7 @@ namespace PocketFlow.Tests;
 public class NodeTests
 {
     [Fact]
-    public async Task Node_DefaultPost_ReturnsNull()
+    public async Task node_with_default_post_returns_null()
     {
         var shared = new Dictionary<string, object>();
         var node = new TestNode();
@@ -19,7 +19,7 @@ public class NodeTests
     }
 
     [Fact]
-    public async Task Node_CanStoreResultsInShared()
+    public async Task node_can_store_results_in_shared()
     {
         var shared = new Dictionary<string, object>();
         var node = new ResultStoringNode();
@@ -31,7 +31,7 @@ public class NodeTests
     }
 
     [Fact]
-    public async Task Node_WithRetries_RetriesUntilSuccess()
+    public async Task node_with_retries_retries_until_success()
     {
         var shared = new Dictionary<string, object>();
         var node = new RetryUntilSuccessNode(maxRetries: 3);

@@ -5,7 +5,7 @@ namespace PocketFlow.Tests;
 public class FlowTests
 {
     [Fact]
-    public async Task Flow_PrepCanBeOverridden()
+    public async Task flow_prep_can_be_overridden()
     {
         var shared = new Dictionary<string, object>();
         var node = new NoOpNode();
@@ -17,7 +17,7 @@ public class FlowTests
     }
     
     [Fact]
-    public void Flow_TransitionSetup_Works()
+    public void flow_transition_setup_works()
     {
         var nodeA = new NoOpNode();
         var nodeB = new NoOpNode();
