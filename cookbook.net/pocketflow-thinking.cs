@@ -42,7 +42,7 @@ class ChainOfThoughtNode : Node<TShared, Dictionary<string, object>, Dictionary<
 
                 if (i == thoughts.Count - 1)
                 {
-                    lastPlanStructure = planList as List<Dictionary<string, object>>;
+                    lastPlanStructure = planList?.OfType<Dictionary<string, object>>().ToList();
                 }
 
                 thoughtsTextList.Add(thoughtBlock);
@@ -198,7 +198,7 @@ Previous thoughts:
         Console.WriteLine(IndentText(currentThinking, "  "));
         Console.WriteLine("\nCurrent Plan Status:");
         Console.WriteLine(IndentText(planStrFormatted, "  "));
-        Console.WriteLine("-" * 50);
+        Console.WriteLine(new string('-', 50));
 
         return Task.FromResult<string?>("continue");
     }
@@ -296,7 +296,15 @@ Previous thoughts:
                 }
                 else if (!string.IsNullOrEmpty(value) && value != "\"\"")
                 {
-                    result[key] = value.Trim('"', '|', '>');
+                    var trimmedValue = value.Trim('"', '|', '>');
+                    if (trimmedValue.Equals("true", StringComparison.OrdinalIgnoreCase))
+                        result[key] = true;
+                    else if (trimmedValue.Equals("false", StringComparison.OrdinalIgnoreCase))
+                        result[key] = false;
+                    else if (int.TryParse(trimmedValue, out var intVal))
+                        result[key] = intVal;
+                    else
+                        result[key] = trimmedValue;
                 }
                 else
                 {
@@ -479,6 +487,6 @@ class Program
         cotNode.On("continue").To(cotNode);
 
         var flow = new Flow<TShared>(cotNode);
-        await flow.RunAsync(shared);
+        await flow.Run(shared);
     }
 }

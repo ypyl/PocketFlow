@@ -1,7 +1,7 @@
 #:property TargetFramework=net10.0
 #:property OutputPath=./cookbook.net/artifacts
 #:project ../pocketflow.net/pocketflow.net.csproj
-#:package Microsoft.Data.Sqlite
+#:package Microsoft.Data.Sqlite@9.0.0
 
 using PocketFlow;
 using Microsoft.Data.Sqlite;
@@ -60,11 +60,11 @@ class GetSchemaNode : Node<TShared, string, string>
 
 class GenerateSQLNode : Node<TShared, (string Query, string Schema), string>
 {
-    public override Task<(string Query, string Schema)?> Prep(TShared shared)
+    public override Task<(string Query, string Schema)> Prep(TShared shared)
     {
         var query = shared.TryGetValue("natural_query", out var q) ? q as string ?? "" : "";
         var schema = shared.TryGetValue("schema", out var s) ? s as string ?? "" : "";
-        return Task.FromResult<(string, string)?>((query, schema));
+        return Task.FromResult<(string, string)>((query, schema));
     }
 
     public override Task<string> Exec((string Query, string Schema) prepRes)
@@ -91,7 +91,7 @@ sql: |
         return Task.FromResult(sqlQuery);
     }
 
-    public override Task<string?> Post(TShared shared, (string Query, string Schema)? prepRes, string execRes)
+    public override Task<string?> Post(TShared shared, (string Query, string Schema) prepRes, string execRes)
     {
         shared["generated_sql"] = execRes;
         shared["debug_attempts"] = 0;
@@ -155,11 +155,11 @@ sql: |
 
 class ExecuteSQLNode : Node<TShared, (string DbPath, string Sql), (bool Success, object? Result, List<string> Columns)>
 {
-    public override Task<(string DbPath, string Sql)?> Prep(TShared shared)
+    public override Task<(string DbPath, string Sql)> Prep(TShared shared)
     {
         var dbPath = shared.TryGetValue("db_path", out var db) ? db as string ?? "ecommerce.db" : "ecommerce.db";
         var sql = shared.TryGetValue("generated_sql", out var s) ? s as string ?? "" : "";
-        return Task.FromResult<(string, string)?>((dbPath, sql));
+        return Task.FromResult<(string, string)>((dbPath, sql));
     }
 
     public override Task<(bool Success, object? Result, List<string> Columns)> Exec((string DbPath, string Sql) prepRes)
@@ -209,7 +209,7 @@ class ExecuteSQLNode : Node<TShared, (string DbPath, string Sql), (bool Success,
         }
     }
 
-    public override Task<string?> Post(TShared shared, (string DbPath, string Sql)? prepRes, (bool Success, object? Result, List<string> Columns) execRes)
+    public override Task<string?> Post(TShared shared, (string DbPath, string Sql) prepRes, (bool Success, object? Result, List<string> Columns) execRes)
     {
         var (success, result, columns) = execRes;
         
@@ -265,14 +265,14 @@ class ExecuteSQLNode : Node<TShared, (string DbPath, string Sql), (bool Success,
 
 class DebugSQLNode : Node<TShared, (string? Query, string? Schema, string? FailedSql, string? Error), string>
 {
-    public override Task<(string? Query, string? Schema, string? FailedSql, string? Error)?> Prep(TShared shared)
+    public override Task<(string? Query, string? Schema, string? FailedSql, string? Error)> Prep(TShared shared)
     {
         var query = shared.TryGetValue("natural_query", out var q) ? q as string : null;
         var schema = shared.TryGetValue("schema", out var s) ? s as string : null;
         var failedSql = shared.TryGetValue("generated_sql", out var f) ? f as string : null;
         var error = shared.TryGetValue("execution_error", out var e) ? e as string : null;
         
-        return Task.FromResult<(string?, string?, string?, string?)?>((query, schema, failedSql, error)));
+        return Task.FromResult<(string?, string?, string?, string?)>((query, schema, failedSql, error));
     }
 
     public override Task<string> Exec((string? Query, string? Schema, string? FailedSql, string? Error) prepRes)
@@ -305,12 +305,12 @@ sql: |
         return Task.FromResult(correctedSql);
     }
 
-    public override Task<string?> Post(TShared shared, (string?, string?, string?, string?)? prepRes, string execRes)
+    public override Task<string?> Post(TShared shared, (string? Query, string? Schema, string? FailedSql, string? Error) prepRes, string execRes)
     {
         shared["generated_sql"] = execRes;
         shared.Remove("execution_error");
         
-        Console.WriteLine($"\n===== REVISED SQL (Attempt {shared.TryGetValue("debug_attempts", out var d) ? (int)d : 0}) =====\n");
+        Console.WriteLine($"\n===== REVISED SQL (Attempt {(shared.TryGetValue("debug_attempts", out var d) ? (int)d : 0)}) =====\n");
         Console.WriteLine(execRes);
         Console.WriteLine("\n====================================\n");
         
@@ -391,19 +391,20 @@ class Program
         Console.WriteLine($"Query: '{query}'");
         Console.WriteLine($"Database: {dbPath}");
         Console.WriteLine($"Max Debug Retries on SQL Error: 3");
-        Console.WriteLine("=" * 45);
+        Console.WriteLine(new string('=', 45));
 
         var getSchema = new GetSchemaNode();
         var generateSql = new GenerateSQLNode();
         var executeSql = new ExecuteSQLNode();
         var debugSql = new DebugSQLNode();
 
-        getSchema >> generateSql >> executeSql;
+        getSchema.Next(generateSql);
+        generateSql.Next(executeSql);
         executeSql.On("error_retry").To(debugSql);
         debugSql.On("default").To(executeSql);
 
         var flow = new Flow<TShared>(getSchema);
-        await flow.RunAsync(shared);
+        await flow.Run(shared);
 
         if (shared.TryGetValue("final_error", out var error) && error != null)
         {
@@ -419,7 +420,7 @@ class Program
             Console.WriteLine("\n=== Workflow Completed (Unknown State) ===");
         }
 
-        Console.WriteLine("=" * 36);
+        Console.WriteLine(new string('=', 36));
     }
 
     static void PopulateDatabase(string dbPath)
