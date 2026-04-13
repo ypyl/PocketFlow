@@ -1,0 +1,1 @@
+[Translation to Spanish]: This is a mock translation of the original text. In a real implementation, this would be the actual translated content from an LLM API.

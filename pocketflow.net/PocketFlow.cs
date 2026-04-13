@@ -30,13 +30,20 @@ public class BaseNode
 
     public void SetParams(IDictionary<string, object>? parameters)
     {
-        Params = parameters != null ? new Dictionary<string, object>(parameters) : new Dictionary<string, object>();
+        Params.Clear();
+        if (parameters != null)
+        {
+            foreach (var kvp in parameters)
+            {
+                Params[kvp.Key] = kvp.Value;
+            }
+        }
     }
 
     public BaseNode ShallowClone()
     {
         var clone = (BaseNode)MemberwiseClone();
-        clone.Params = new Dictionary<string, object>(Params);
+        clone.Params = Params;
         return clone;
     }
 
@@ -257,7 +264,11 @@ public class BatchFlow<TShared>(
         {
             foreach (var itemParams in paramSets)
             {
-                await OrchestrateOnce(shared, itemParams);
+                if (StartNode != null)
+                {
+                    StartNode.SetParams(itemParams);
+                }
+                await base.DoOrchestrate(shared);
             }
         }
         
