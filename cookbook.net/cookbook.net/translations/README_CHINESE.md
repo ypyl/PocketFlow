@@ -1,0 +1,1 @@
+[Translation to Chinese] This is a mock translation of the content. In a real application, this would call an LLM API to perform the actual translation while preserving markdown formatting, links, and code blocks.
