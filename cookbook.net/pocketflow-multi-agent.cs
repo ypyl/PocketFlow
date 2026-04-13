@@ -153,6 +153,8 @@ class Program
 
         hinter.On("continue").To(guesser);
         guesser.On("continue").To(hinter);
+        hinter.On("end").To(null!);
+        guesser.On("end").To(null!);
 
         var flow = new Flow<TShared>(hinter);
         
