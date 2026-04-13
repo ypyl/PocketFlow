@@ -1,1 +1,1 @@
-[Translation to German] This is a mock translation of the content. In a real application, this would call an LLM API to perform the actual translation while preserving markdown formatting, links, and code blocks.
+[Translation to German]: This is a mock translation of the original text. In a real implementation, this would be the actual translated content from an LLM API.
