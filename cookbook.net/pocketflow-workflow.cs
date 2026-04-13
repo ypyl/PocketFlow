@@ -271,10 +271,11 @@ class Program
         var writeNode = new WriteSimpleContentNode();
         var styleNode = new ApplyStyleNode();
 
-        outlineNode >> writeNode >> styleNode;
+        outlineNode.Next(writeNode);
+        writeNode.Next(styleNode);
 
         var flow = new Flow<TShared>(outlineNode);
-        await flow.RunAsync(shared);
+        await flow.Run(shared);
 
         Console.WriteLine("\n=== Workflow Completed ===\n");
         Console.WriteLine($"Topic: {shared["topic"]}");

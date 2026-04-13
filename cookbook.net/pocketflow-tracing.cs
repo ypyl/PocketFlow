@@ -57,9 +57,9 @@ class BasicGreetingFlow : Flow<TShared>
         var greetingNode = new GreetingNode();
         var uppercaseNode = new UppercaseNode();
         
-        greetingNode >> uppercaseNode;
+        greetingNode.Next(uppercaseNode);
         
-        base.SetStartNode(greetingNode);
+        base.StartNode = greetingNode;
     }
 }
 
@@ -83,7 +83,7 @@ class Program
         
         try
         {
-            await flow.RunAsync(shared);
+            await flow.Run(shared);
             
             stopwatch.Stop();
             

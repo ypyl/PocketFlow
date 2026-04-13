@@ -9,11 +9,11 @@ using TShared = System.Collections.Generic.IDictionary<string, object>;
 
 class SearchNode : Node<TShared, (string Query, int NumResults), List<Dictionary<string, string>>>
 {
-    public override Task<(string, int)?> Prep(TShared shared)
+    public override Task<(string Query, int NumResults)> Prep(TShared shared)
     {
         var query = shared.TryGetValue("query", out var q) ? q as string ?? "" : "";
         var numResults = shared.TryGetValue("num_results", out var n) ? (int)n : 5;
-        return Task.FromResult<(string, int)?>((query, numResults));
+        return Task.FromResult<(string, int)>((query, numResults));
     }
 
     public override Task<List<Dictionary<string, string>>> Exec((string Query, int NumResults) input)
@@ -29,7 +29,7 @@ class SearchNode : Node<TShared, (string Query, int NumResults), List<Dictionary
         return Task.FromResult(results);
     }
 
-    public override Task<string?> Post(TShared shared, (string, int)? prepRes, List<Dictionary<string, string>>? execRes)
+    public override Task<string?> Post(TShared shared, (string Query, int NumResults) prepRes, List<Dictionary<string, string>> execRes)
     {
         shared["search_results"] = execRes ?? new List<Dictionary<string, string>>();
         return Task.FromResult<string?>("default");
@@ -65,11 +65,11 @@ class SearchNode : Node<TShared, (string Query, int NumResults), List<Dictionary
 
 class AnalyzeResultsNode : Node<TShared, (string Query, List<Dictionary<string, string>> Results), Dictionary<string, object>>
 {
-    public override Task<(string, List<Dictionary<string, string>>)?> Prep(TShared shared)
+    public override Task<(string Query, List<Dictionary<string, string>> Results)> Prep(TShared shared)
     {
         var query = shared.TryGetValue("query", out var q) ? q as string ?? "" : "";
         var results = shared.TryGetValue("search_results", out var r) ? r as List<Dictionary<string, string>> ?? new() : new();
-        return Task.FromResult<(string, List<Dictionary<string, string>>)?>((query, results));
+        return Task.FromResult<(string, List<Dictionary<string, string>>)>((query, results));
     }
 
     public override Task<Dictionary<string, object>> Exec((string Query, List<Dictionary<string, string>> Results) input)
@@ -95,7 +95,7 @@ class AnalyzeResultsNode : Node<TShared, (string Query, List<Dictionary<string, 
         return Task.FromResult(analysis);
     }
 
-    public override Task<string?> Post(TShared shared, (string, List<Dictionary<string, string>>)? prepRes, Dictionary<string, object>? execRes)
+    public override Task<string?> Post(TShared shared, (string Query, List<Dictionary<string, string>> Results) prepRes, Dictionary<string, object> execRes)
     {
         shared["analysis"] = execRes ?? new Dictionary<string, object>();
         
@@ -193,9 +193,9 @@ class Program
         var searchNode = new SearchNode();
         var analyzeNode = new AnalyzeResultsNode();
         
-        searchNode >> analyzeNode;
+        searchNode.Next(analyzeNode);
         
         var flow = new Flow<TShared>(searchNode);
-        await flow.RunAsync(shared);
+        await flow.Run(shared);
     }
 }
